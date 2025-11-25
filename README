@@ -1,0 +1,630 @@
+# Node.js WebSocket Chat Application with MySQL
+
+Ứng dụng chat real-time full-stack sử dụng Node.js, Socket.IO, MySQL và Sequelize ORM. Hỗ trợ authentication, quản lý phòng chat, và nhiều tính năng nâng cao.
+
+## 📋 Mục lục
+- [Tổng quan](#tổng-quan)
+- [Cấu trúc dự án](#cấu-trúc-dự-án)
+- [Kiến trúc hệ thống](#kiến-trúc-hệ-thống)
+- [Cài đặt và chạy](#cài-đặt-và-chạy)
+- [API Documentation](#api-documentation)
+- [WebSocket Events](#websocket-events)
+- [Database Schema](#database-schema)
+- [Tính năng](#tính-năng)
+- [Cấu hình](#cấu-hình)
+
+## 🎯 Tổng quan
+
+Ứng dụng chat real-time enterprise-grade với các tính năng:
+- Authentication và authorization
+- Quản lý phòng chat (public/private)
+- Message persistence với MySQL
+- Real-time messaging với Socket.IO
+- File upload và sharing
+- Message reactions và read receipts
+- Typing indicators
+- Redis adapter cho scaling
+
+## 📁 Cấu trúc dự án
+
+```
+nodejs-websocket-chat/
+├── server.js                    # Entry point
+├── package.json                 # Dependencies và scripts
+├── .env                         # Environment variables
+├── .gitignore                   # Git ignore rules
+├── src/
+│   ├── config/
+│   │   ├── database.js          # MySQL/Sequelize config
+│   │   ├── redis.js             # Redis connection
+│   │   └── socket.js            # Socket.IO initialization
+│   ├── controllers/
+│   │   ├── authController.js    # Authentication logic
+│   │   ├── chatController.js    # Chat operations
+│   │   ├── roomController.js    # Room management
+│   │   └── userController.js    # User management
+│   ├── middleware/
+│   │   ├── auth.js              # JWT authentication
+│   │   ├── validation.js        # Input validation
+│   │   └── socketAuth.js        # Socket authentication
+│   ├── models/
+│   │   ├── User.js              # User model (Sequelize)
+│   │   ├── Room.js              # Room model
+│   │   ├── Message.js           # Message model
+│   │   ├── RoomMember.js        # Room membership
+│   │   ├── MessageReaction.js   # Message reactions
+│   │   ├── MessageRead.js       # Read receipts
+│   │   └── index.js             # Model associations
+│   ├── routes/
+│   │   ├── auth.js              # Authentication routes
+│   │   ├── chat.js              # Chat API routes
+│   │   └── room.js              # Room management routes
+│   ├── services/
+│   │   ├── socketService.js     # WebSocket business logic
+│   │   ├── chatService.js       # Chat operations
+│   │   ├── authService.js       # Auth operations
+│   │   └── userService.js       # User operations
+│   ├── utils/
+│   │   ├── jwt.js               # JWT utilities
+│   │   ├── logger.js            # Winston logging
+│   │   └── validation.js        # Validation helpers
+│   └── database/
+│       ├── migrate.js           # Database migration
+│       └── seed.js              # Sample data seeding
+├── public/
+│   ├── index.html               # Chat interface
+│   ├── login.html               # Login page
+│   ├── css/
+│   │   └── styles.css           # Styling
+│   └── js/
+│       ├── chat.js              # Client WebSocket logic
+│       ├── auth.js              # Client authentication
+│       └── utils.js             # Utility functions
+├── uploads/                     # File upload directory
+└── logs/                        # Application logs
+```
+
+## 🏗️ Kiến trúc hệ thống
+
+### **Luồng hoạt động tổng quan:**
+
+```mermaid
+graph TB
+    A[Client Browser] --> B[Express Server]
+    B --> C[Socket.IO Server]
+    B --> D[MySQL Database]
+    B --> E[Redis Cache]
+    C --> F[SocketService]
+    F --> G[ChatService]
+    G --> D
+    
+    subgraph "Authentication Flow"
+    H[JWT Token] --> I[Auth Middleware]
+    I --> J[Socket Auth]
+    end
+    
+    subgraph "Real-time Features"
+    K[Typing Indicators]
+    L[Message Broadcasting]
+    M[User Status]
+    N[Read Receipts]
+    end
+```
+
+### **1. Server Initialization** ([server.js](server.js))
+
+```javascript
+Express Server + HTTP Server + Socket.IO
+↓
+Database Connection (MySQL + Redis)
+↓
+Middleware Setup (Auth, CORS, Security)
+↓
+Routes Registration
+↓
+Socket.IO Initialization
+```
+
+### **2. Authentication Flow**
+
+```javascript
+User Login → JWT Token Generated
+↓
+Token sent in Authorization header
+↓
+JWT Middleware validates token
+↓
+User object attached to req/socket
+↓
+Access granted to protected resources
+```
+
+### **3. WebSocket Connection Flow**
+
+```javascript
+Client connects with JWT token
+↓
+socketAuth middleware validates
+↓
+User joins their rooms automatically
+↓
+Connection stored in memory + Redis
+↓
+Real-time events handling begins
+```
+
+### **4. Message Flow**
+
+```javascript
+User types message → Typing indicator sent
+↓
+Message sent via socket.emit('send_message')
+↓
+Server validates + saves to MySQL
+↓
+Message broadcasted to room members
+↓
+Read receipts tracking
+↓
+Message reactions support
+```
+
+## 🚀 Cài đặt và chạy
+
+### **Prerequisites:**
+- Node.js (v16+)
+- MySQL (v8.0+)
+- Redis (v6.0+) - Optional cho scaling
+- npm hoặc yarn
+
+### **1. Cài đặt MySQL:**
+
+```bash
+# macOS (Homebrew)
+brew install mysql
+brew services start mysql
+
+# Ubuntu/Debian
+sudo apt update
+sudo apt install mysql-server
+sudo systemctl start mysql
+
+# Windows - Download MySQL Installer
+```
+
+### **2. Tạo Database:**
+
+```sql
+-- Đăng nhập MySQL
+mysql -u root -p
+
+-- Tạo database và user
+CREATE DATABASE websocket_chat;
+CREATE USER 'chatuser'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON websocket_chat.* TO 'chatuser'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+### **3. Cài đặt Redis (Optional):**
+
+```bash
+# macOS
+brew install redis
+brew services start redis
+
+# Ubuntu
+sudo apt install redis-server
+sudo systemctl start redis
+```
+
+### **4. Setup Project:**
+
+```bash
+# Clone repository
+git clone <your-repo>
+cd nodejs-websocket-chat
+
+# Install dependencies
+npm install
+
+# Copy và configure environment
+cp .env.example .env
+# Chỉnh sửa .env với thông tin database của bạn
+
+# Run migrations (tạo tables)
+npm run migrate
+
+# Seed sample data
+npm run seed
+```
+
+### **5. Environment Configuration (.env):**
+
+```bash
+# Server
+PORT=3000
+NODE_ENV=development
+
+# MySQL Database
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=websocket_chat
+DB_USER=chatuser
+DB_PASS=your_password
+
+# Redis (Optional)
+REDIS_URL=redis://localhost:6379
+
+# JWT Secret
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# CORS
+FRONTEND_URL=http://localhost:3000
+
+# File Upload
+MAX_FILE_SIZE=10485760
+UPLOAD_DIR=uploads
+```
+
+### **6. Chạy Application:**
+
+```bash
+# Development mode
+npm run dev
+
+# Production mode
+npm start
+
+# Run tests
+npm test
+```
+
+### **7. Truy cập Application:**
+
+- **Chat App:** `http://localhost:3000`
+- **Login Page:** `http://localhost:3000/login`
+
+**Demo Accounts:**
+- Username: `admin` | Password: `password`
+- Username: `user1` | Password: `password`
+- Username: `user2` | Password: `password`
+
+## 📡 API Documentation
+
+### **Authentication Endpoints:**
+
+| Method | Endpoint | Body | Response | Description |
+|--------|----------|------|----------|-------------|
+| POST | `/api/auth/register` | `{username, email, password}` | `{token, user}` | Đăng ký user mới |
+| POST | `/api/auth/login` | `{username, password}` | `{token, user}` | Đăng nhập |
+| POST | `/api/auth/logout` | - | `{message}` | Đăng xuất |
+| GET | `/api/auth/profile` | - | `{user}` | Lấy thông tin user |
+
+### **Chat Endpoints:**
+
+| Method | Endpoint | Body/Params | Response | Description |
+|--------|----------|-------------|----------|-------------|
+| GET | `/api/chat/rooms/:roomId/messages` | `page, limit` | `{messages, pagination}` | Lấy tin nhắn phòng |
+| PUT | `/api/chat/messages/:messageId` | `{content}` | `{message}` | Sửa tin nhắn |
+| DELETE | `/api/chat/messages/:messageId` | - | `{message}` | Xóa tin nhắn |
+| POST | `/api/chat/message` | `{msg, roomId}` | `{message}` | Gửi tin nhắn (HTTP) |
+
+### **Room Endpoints:**
+
+| Method | Endpoint | Body | Response | Description |
+|--------|----------|------|----------|-------------|
+| GET | `/api/rooms` | - | `{rooms}` | Lấy danh sách phòng |
+| POST | `/api/rooms` | `{name, description, type}` | `{room}` | Tạo phòng mới |
+| PUT | `/api/rooms/:roomId` | `{name, description}` | `{room}` | Cập nhật phòng |
+| DELETE | `/api/rooms/:roomId` | - | `{message}` | Xóa phòng |
+| POST | `/api/rooms/:roomId/join` | - | `{message}` | Tham gia phòng |
+| POST | `/api/rooms/:roomId/leave` | - | `{message}` | Rời phòng |
+
+### **Authentication Required:**
+Tất cả API endpoints (trừ register/login) cần header:
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+## ⚡ WebSocket Events
+
+### **Connection Events:**
+
+| Event | Direction | Data | Description |
+|-------|-----------|------|-------------|
+| `connect` | Server → Client | - | Kết nối thành công |
+| `disconnect` | Server → Client | `{reason}` | Ngắt kết nối |
+| `error` | Server → Client | `{message}` | Lỗi xảy ra |
+
+### **Message Events:**
+
+| Event | Direction | Data Type | Description |
+|-------|-----------|-----------|-------------|
+| `send_message` | Client → Server | `{roomId, content, type, replyTo}` | Gửi tin nhắn |
+| `new_message` | Server → Client | `{id, senderId, senderName, content, timestamp, roomId}` | Tin nhắn mới |
+| `message_edited` | Server → Client | `{messageId, content, editedAt}` | Tin nhắn đã sửa |
+| `message_deleted` | Server → Client | `{messageId, content}` | Tin nhắn đã xóa |
+
+### **Room Events:**
+
+| Event | Direction | Data | Description |
+|-------|-----------|------|-------------|
+| `join_room` | Client → Server | `{roomId}` | Tham gia phòng |
+| `leave_room` | Client → Server | `{roomId}` | Rời phòng |
+| `room_messages` | Server → Client | `{roomId, messages}` | Tin nhắn phòng |
+| `user_joined_room` | Server → Client | `{userId, username, roomId}` | User tham gia |
+| `user_left_room` | Server → Client | `{userId, username, roomId}` | User rời đi |
+
+### **Typing Events:**
+
+| Event | Direction | Data | Description |
+|-------|-----------|------|-------------|
+| `typing_start` | Client → Server | `{roomId}` | Bắt đầu gõ |
+| `typing_stop` | Client → Server | `{roomId}` | Ngừng gõ |
+| `user_typing` | Server → Client | `{userId, username, isTyping}` | User đang gõ |
+
+### **User Status Events:**
+
+| Event | Direction | Data | Description |
+|-------|-----------|------|-------------|
+| `users_online` | Server → Client | `[{userId, username, status}]` | Danh sách user online |
+| `user_status_changed` | Server → Client | `{userId, status, timestamp}` | Thay đổi trạng thái |
+
+### **Example Usage:**
+
+```javascript
+// Client-side
+const socket = io({
+  auth: {
+    token: localStorage.getItem('authToken')
+  }
+});
+
+// Gửi tin nhắn
+socket.emit('send_message', {
+  roomId: 'room-uuid',
+  content: 'Hello world!',
+  type: 'text'
+});
+
+// Nhận tin nhắn
+socket.on('new_message', (message) => {
+  console.log('New message:', message);
+  displayMessage(message);
+});
+
+// Typing indicators
+socket.emit('typing_start', { roomId: 'room-uuid' });
+socket.on('user_typing', (data) => {
+  showTypingIndicator(data.username);
+});
+```
+
+## 🗄️ Database Schema
+
+### **Users Table:**
+```sql
+CREATE TABLE users (
+  id VARCHAR(36) PRIMARY KEY,
+  username VARCHAR(30) UNIQUE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  avatar VARCHAR(255),
+  status ENUM('online', 'offline', 'away', 'busy') DEFAULT 'offline',
+  lastSeen DATETIME,
+  isActive BOOLEAN DEFAULT true,
+  createdAt DATETIME,
+  updatedAt DATETIME
+);
+```
+
+### **Rooms Table:**
+```sql
+CREATE TABLE rooms (
+  id VARCHAR(36) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  type ENUM('public', 'private', 'direct') DEFAULT 'public',
+  ownerId VARCHAR(36) NOT NULL,
+  settings JSON,
+  lastActivity DATETIME,
+  isActive BOOLEAN DEFAULT true,
+  createdAt DATETIME,
+  updatedAt DATETIME,
+  FOREIGN KEY (ownerId) REFERENCES users(id)
+);
+```
+
+### **Messages Table:**
+```sql
+CREATE TABLE messages (
+  id VARCHAR(36) PRIMARY KEY,
+  senderId VARCHAR(36) NOT NULL,
+  roomId VARCHAR(36) NOT NULL,
+  content TEXT NOT NULL,
+  type ENUM('text', 'image', 'file', 'system') DEFAULT 'text',
+  fileUrl VARCHAR(255),
+  fileName VARCHAR(255),
+  fileSize INT,
+  replyToId VARCHAR(36),
+  edited BOOLEAN DEFAULT false,
+  editedAt DATETIME,
+  isDeleted BOOLEAN DEFAULT false,
+  createdAt DATETIME,
+  updatedAt DATETIME,
+  FOREIGN KEY (senderId) REFERENCES users(id),
+  FOREIGN KEY (roomId) REFERENCES rooms(id),
+  FOREIGN KEY (replyToId) REFERENCES messages(id)
+);
+```
+
+### **Room Members (Junction Table):**
+```sql
+CREATE TABLE room_members (
+  id VARCHAR(36) PRIMARY KEY,
+  userId VARCHAR(36) NOT NULL,
+  roomId VARCHAR(36) NOT NULL,
+  role ENUM('admin', 'moderator', 'member') DEFAULT 'member',
+  joinedAt DATETIME,
+  createdAt DATETIME,
+  updatedAt DATETIME,
+  UNIQUE KEY unique_user_room (userId, roomId),
+  FOREIGN KEY (userId) REFERENCES users(id),
+  FOREIGN KEY (roomId) REFERENCES rooms(id)
+);
+```
+
+## ✨ Tính năng
+
+### **Core Features:**
+- ✅ **Real-time Messaging** - Socket.IO bidirectional communication
+- ✅ **User Authentication** - JWT-based với bcrypt password hashing
+- ✅ **Room Management** - Public/Private rooms với role-based permissions
+- ✅ **Message Persistence** - MySQL database với Sequelize ORM
+- ✅ **File Upload** - Multer middleware cho file sharing
+- ✅ **Message History** - Pagination và search functionality
+
+### **Advanced Features:**
+- ✅ **Typing Indicators** - Real-time typing status
+- ✅ **Online Status** - User presence tracking
+- ✅ **Message Reactions** - Emoji reactions hệ thống
+- ✅ **Read Receipts** - Message đọc tracking
+- ✅ **Message Threading** - Reply to messages
+- ✅ **Message Editing/Deletion** - với time constraints
+
+### **Technical Features:**
+- ✅ **Auto-reconnection** - Socket.IO tự động reconnect
+- ✅ **Error Handling** - Comprehensive error management
+- ✅ **Input Validation** - Joi validation middleware
+- ✅ **Security** - Helmet, CORS, Rate limiting
+- ✅ **Logging** - Winston logger với file rotation
+- ✅ **Database Migration** - Sequelize migration system
+
+### **Scalability Features:**
+- ✅ **Redis Adapter** - Multiple server instances support
+- ✅ **Connection Pooling** - Database connection optimization
+- ✅ **Caching** - Redis caching layer
+- ✅ **Load Balancing Ready** - Stateless design
+
+## 🔧 Cấu hình
+
+### **Production Deployment:**
+
+```bash
+# Install PM2 for process management
+npm install -g pm2
+
+# Start application with PM2
+pm2 start ecosystem.config.js
+
+# Configure nginx reverse proxy
+# /etc/nginx/sites-available/chat-app
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### **Docker Deployment:**
+
+```dockerfile
+FROM node:16-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+```
+
+### **Environment Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | 3000 | Server port |
+| `NODE_ENV` | development | Environment |
+| `DB_HOST` | localhost | MySQL host |
+| `DB_PORT` | 3306 | MySQL port |
+| `DB_NAME` | websocket_chat | Database name |
+| `DB_USER` | root | Database user |
+| `DB_PASS` | - | Database password |
+| `REDIS_URL` | redis://localhost:6379 | Redis connection |
+| `JWT_SECRET` | - | JWT signing secret |
+| `MAX_FILE_SIZE` | 10MB | Max upload size |
+
+### **Performance Tuning:**
+
+```javascript
+// Socket.IO configuration
+const io = new Server(server, {
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling'],
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e6
+});
+
+// MySQL connection pool
+const sequelize = new Sequelize({
+  pool: {
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  }
+});
+```
+
+## 🧪 Testing
+
+```bash
+# Run tests
+npm test
+
+# Run with coverage
+npm run test:coverage
+
+# Run integration tests
+npm run test:integration
+```
+
+## 📝 Contributing
+
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 📞 Support
+
+Nếu gặp vấn đề hoặc có câu hỏi:
+- Tạo issue trên GitHub
+- Email: your-email@example.com
+- Documentation: [Wiki](link-to-wiki)
+
+---
+
+**Made with ❤️ using Node.js, Socket.IO và MySQL**
