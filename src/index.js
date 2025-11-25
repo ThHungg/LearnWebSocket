@@ -2,9 +2,16 @@ const express = require("express");
 const http = require("http");
 const path = require("path");
 const app = express();
-const route = require("./routes/chatRoute");
+const bodyParser = require("body-parser");
+const cookieParser = require("cookie-parser");
+const route = require("./routes");
 const SocketServices = require("./services/chatService");
-const port = 3000;
+const { connectDB } = require("./config/db");
+
+const dotenv = require("dotenv");
+dotenv.config();
+
+const port = process.env.PORT || 3000;
 const { Server } = require("socket.io");
 
 global.__basedir = __dirname;
@@ -25,6 +32,8 @@ const io = new Server(server, {
 // Sử dụng SocketServices để quản lý kết nối
 const socketService = SocketServices(io);
 socketService.connection();
+app.use(bodyParser.json());
+app.use(cookieParser());
 
 // Middleware để truyền io instance cho routes
 app.use((req, res, next) => {
@@ -32,9 +41,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use("/", route);
+route(app);
 
 server.listen(port, () => {
+  connectDB();
   console.log(`Server is running at http://localhost:${port}`);
   console.log(
     `Open http://localhost:${port} in your browser to test WebSocket`
