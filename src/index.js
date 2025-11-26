@@ -5,14 +5,14 @@ const app = express();
 const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const route = require("./routes");
-const SocketServices = require("./services/chatService");
+// const SocketServices = require("./services/chatService");
 const { connectDB } = require("./config/db");
 
 const dotenv = require("dotenv");
 dotenv.config();
 
 const port = process.env.PORT || 3000;
-const { Server } = require("socket.io");
+// const { Server } = require("socket.io");
 
 global.__basedir = __dirname;
 //Global biến toàn cục tồn tại trong toàn bộ project
@@ -21,17 +21,17 @@ global.__basedir = __dirname;
 // Phục vụ file tĩnh từ thư mục gốc
 app.use(express.static(path.join(__dirname, "../")));
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"],
-  },
-});
+// const server = http.createServer(app);
+// const io = new Server(server, {
+//   cors: {
+//     origin: "*",
+//     methods: ["GET", "POST"],
+//   },
+// });
 
 // Sử dụng SocketServices để quản lý kết nối
-const socketService = SocketServices(io);
-socketService.connection();
+// const socketService = SocketServices(io);
+// socketService.connection();
 app.use(bodyParser.json());
 app.use(cookieParser());
 
@@ -43,7 +43,7 @@ app.use((req, res, next) => {
 
 route(app);
 
-server.listen(port, () => {
+app.listen(port, () => {
   connectDB();
   console.log(`Server is running at http://localhost:${port}`);
   console.log(

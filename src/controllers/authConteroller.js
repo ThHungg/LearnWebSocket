@@ -50,7 +50,26 @@ const login = async (req, res) => {
   }
 };
 
+const logout = async (req, res) => {
+  try {
+    res.clearCookie("access_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+    return res.status(200).json({
+      status: "Ok",
+      message: "Đăng xuất thành công",
+    });
+  } catch (e) {
+    return res.status(404).json({
+      message: "Lỗi hệ thống vui lòng thử lại sau!",
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
+  logout,
 };

@@ -31,11 +31,11 @@ const login = async (email, password) => {
       return { message: "Mật khẩu không đúng" };
     }
     const access_token = genneralAccessToken({
-      userId: user.id,
+      id: user.id,
     });
 
     await user.update({
-      satatus: "online",
+      status: "online",
       lastSeen: new Date(),
     });
 
